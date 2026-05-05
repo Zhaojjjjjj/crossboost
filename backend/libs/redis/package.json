@@ -1,0 +1,14 @@
+{
+  "name": "@crossboost/redis",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "ioredis": "^5.4.0"
+  },
+  "peerDependencies": {
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/common": "^11.0.0"
+  }
+}

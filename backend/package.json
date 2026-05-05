@@ -1,0 +1,40 @@
+{
+  "name": "@crossboost/source",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "lint": "nx run-many --target=lint --nxBail --outputStyle=static --parallel=\"75%\"",
+    "ai:serve": "nx serve crossboost-ai",
+    "server:serve": "nx serve crossboost-server",
+    "build:all": "nx run-many --target=build --all"
+  },
+  "dependencies": {
+    "reflect-metadata": "^0.2.2",
+    "tslib": "^2.3.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@nx/eslint": "22.4.4",
+    "@nx/eslint-plugin": "22.4.4",
+    "@nx/js": "22.4.4",
+    "@nx/nest": "22.4.4",
+    "@nx/node": "22.4.4",
+    "@nx/vite": "^22.4.4",
+    "@nx/vitest": "^22.4.4",
+    "@nx/workspace": "22.4.4",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.12.0",
+    "@vitest/coverage-v8": "^4.0.0",
+    "eslint": "^9.39.2",
+    "nx": "22.4.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.0.0",
+    "vitest": "^4.0.8"
+  },
+  "nx": {
+    "includedScripts": []
+  }
+}

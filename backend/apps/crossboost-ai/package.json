@@ -1,0 +1,31 @@
+{
+  "name": "@crossboost/crossboost-ai",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@crossboost/common": "workspace:*",
+    "@crossboost/mongodb": "workspace:*",
+    "@crossboost/auth": "workspace:*",
+    "@crossboost/queue": "workspace:*",
+    "@crossboost/redis": "workspace:*",
+    "@crossboost/redlock": "workspace:*",
+    "@crossboost/assets": "workspace:*",
+    "@crossboost/mcp-sdk": "workspace:*",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/schedule": "^5.0.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^4.80.0",
+    "langchain": "^0.3.0",
+    "@langchain/openai": "^0.3.0",
+    "bullmq": "^5.30.0",
+    "rxjs": "^7.8.0",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "@crossboost/common": "workspace:*",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.12.0"
+  }
+}

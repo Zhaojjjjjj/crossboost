@@ -1,0 +1,29 @@
+{
+  "name": "@crossboost/crossboost-server",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@crossboost/common": "workspace:*",
+    "@crossboost/mongodb": "workspace:*",
+    "@crossboost/auth": "workspace:*",
+    "@crossboost/queue": "workspace:*",
+    "@crossboost/redis": "workspace:*",
+    "@crossboost/redlock": "workspace:*",
+    "@crossboost/assets": "workspace:*",
+    "@crossboost/mcp-sdk": "workspace:*",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/event-emitter": "^3.0.0",
+    "@nestjs/bullmq": "^5.0.0",
+    "@nestjs/schedule": "^5.0.0",
+    "bullmq": "^5.30.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.0",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.12.0"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "target": "esnext",
+    "lib": ["esnext"],
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "baseUrl": ".",
+    "rootDir": ".",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "useDefineForClassFields": false,
+    "paths": {
+      "@crossboost/common": ["libs/common/src/index.ts"],
+      "@crossboost/mongodb": ["libs/mongodb/src/index.ts"],
+      "@crossboost/auth": ["libs/auth/src/index.ts"],
+      "@crossboost/queue": ["libs/queue/src/index.ts"],
+      "@crossboost/redis": ["libs/redis/src/index.ts"],
+      "@crossboost/redlock": ["libs/redlock/src/index.ts"],
+      "@crossboost/assets": ["libs/assets/src/index.ts"],
+      "@crossboost/aws-s3": ["libs/aws-s3/src/index.ts"],
+      "@crossboost/mcp-sdk": ["libs/mcp-sdk/src/index.ts"]
+    },
+    "strict": true,
+    "strictBindCallApply": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": false,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "declaration": false,
+    "importHelpers": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipDefaultLibCheck": true,
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules", "tmp"]
+}

@@ -1,0 +1,238 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: crossboost-mongodb
+    restart: unless-stopped
+    entrypoint: ["bash", "-c", "openssl rand -base64 756 > /data/mongodb-keyfile && chmod 400 /data/mongodb-keyfile && chown mongodb:mongodb /data/mongodb-keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /data/mongodb-keyfile"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    networks:
+      - crossboost-network
+    healthcheck:
+      test: mongosh --quiet --eval "try { rs.status().ok } catch(e) { 0 }"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  mongodb-rs-init:
+    image: mongo:latest
+    container_name: crossboost-mongodb-rs-init
+    depends_on:
+      mongodb:
+        condition: service_started
+    entrypoint: ["/bin/sh", "-c", "sleep 5 && mongosh mongodb://admin:password@mongodb:27017/?authSource=admin --eval \"try { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongodb:27017'}]}) } catch(e) { if (e.codeName!=='AlreadyInitialized') throw e }\""]
+    restart: "no"
+    networks:
+      - crossboost-network
+
+  redis:
+    image: redis:latest
+    container_name: crossboost-redis
+    restart: unless-stopped
+    command: redis-server --requirepass password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - crossboost-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "password", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: crossboost-rustfs
+    hostname: rustfs.local
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+    ports:
+      - "9001:9001"
+    volumes:
+      - rustfs-data:/data
+    networks:
+      crossboost-network:
+        aliases:
+          - rustfs.local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  rustfs-init:
+    image: minio/mc:latest
+    container_name: crossboost-rustfs-init
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    networks:
+      - crossboost-network
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set rustfs http://rustfs.local:9000 rustfsadmin rustfsadmin;
+      mc mb rustfs/crossboost --ignore-existing;
+      mc anonymous set download rustfs/crossboost;
+      exit 0;
+      "
+
+  crossboost-ai:
+    build:
+      context: ./backend
+      dockerfile: apps/crossboost-ai/Dockerfile
+    container_name: crossboost-ai
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - crossboost-network
+    environment:
+      NODE_ENV: production
+      PORT: 3010
+
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/crossboost?authSource=admin
+
+      REDIS_URL: redis://:password@redis:6379
+
+      JWT_SECRET: change-this-jwt-secret
+      INTERNAL_TOKEN: change-this-secret-token
+
+      SERVER_URL: http://crossboost-server:3002
+
+      ASSETS_ENDPOINT: http://rustfs.local:9000
+      ASSETS_BUCKET: crossboost
+      ASSETS_ACCESS_KEY: rustfsadmin
+      ASSETS_SECRET_KEY: rustfsadmin
+
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-sk-placeholder}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROK_API_KEY: ${GROK_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3010/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  crossboost-server:
+    build:
+      context: ./backend
+      dockerfile: apps/crossboost-server/Dockerfile
+    container_name: crossboost-server
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      crossboost-ai:
+        condition: service_healthy
+    networks:
+      - crossboost-network
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/crossboost?authSource=admin
+
+      REDIS_URL: redis://:password@redis:6379
+
+      AI_SERVICE_URL: http://crossboost-ai:3010
+
+      JWT_SECRET: change-this-jwt-secret
+      INTERNAL_TOKEN: change-this-secret-token
+
+      ASSETS_ENDPOINT: http://rustfs.local:9000
+      ASSETS_BUCKET: crossboost
+      ASSETS_ACCESS_KEY: rustfsadmin
+      ASSETS_SECRET_KEY: rustfsadmin
+
+      # Platform OAuth (fill in your credentials)
+      TIKTOK_CLIENT_ID: ${TIKTOK_CLIENT_ID:-}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-}
+      INSTAGRAM_CLIENT_ID: ${INSTAGRAM_CLIENT_ID:-}
+      INSTAGRAM_CLIENT_SECRET: ${INSTAGRAM_CLIENT_SECRET:-}
+      PINTEREST_CLIENT_ID: ${PINTEREST_CLIENT_ID:-}
+      PINTEREST_CLIENT_SECRET: ${PINTEREST_CLIENT_SECRET:-}
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+      YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  crossboost-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: crossboost-web
+    restart: unless-stopped
+    depends_on:
+      crossboost-server:
+        condition: service_healthy
+    networks:
+      - crossboost-network
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+
+  nginx:
+    image: nginx:alpine
+    container_name: crossboost-nginx
+    restart: unless-stopped
+    depends_on:
+      crossboost-web:
+        condition: service_started
+      crossboost-server:
+        condition: service_healthy
+      crossboost-ai:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+      - "9000:9000"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - crossboost-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/_nhealth"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  crossboost-network:
+    driver: bridge
+    name: crossboost-network
+
+volumes:
+  mongodb-data:
+    driver: local
+  mongodb-config:
+    driver: local
+  redis-data:
+    driver: local
+  rustfs-data:
+    driver: local

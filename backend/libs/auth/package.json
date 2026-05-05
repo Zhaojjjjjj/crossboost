@@ -1,0 +1,17 @@
+{
+  "name": "@crossboost/auth",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1"
+  },
+  "peerDependencies": {
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/common": "^11.0.0"
+  }
+}
