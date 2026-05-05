@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import { Account } from '@crossboost/database'
 import { AccountModule } from '../account/account.module'
 import { DataCubeModule } from './data-cube/data-cube.module'
 import { InstagramService } from './platforms/instagram/instagram.service'
@@ -8,7 +10,12 @@ import { YoutubeService } from './platforms/youtube/youtube.service'
 import { PublishingModule } from './publishing/publishing.module'
 
 @Module({
-  imports: [AccountModule, PublishingModule, DataCubeModule],
+  imports: [
+    TypeOrmModule.forFeature([Account]),
+    AccountModule,
+    PublishingModule,
+    DataCubeModule,
+  ],
   providers: [TikTokShopService, InstagramService, PinterestService, YoutubeService],
   exports: [TikTokShopService, InstagramService, PinterestService, YoutubeService, PublishingModule, DataCubeModule],
 })

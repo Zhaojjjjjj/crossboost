@@ -7,6 +7,7 @@ import { CreditsService } from '../credits/credits.service'
 import { NotificationService } from '../notification/notification.service'
 import { ProductService } from '../product/product.service'
 import { UserService } from '../user/user.service'
+import { NotificationType } from '@crossboost/database'
 
 @ApiTags('Internal')
 @Controller('internal')
@@ -74,19 +75,19 @@ export class InternalController {
   })
   @Post('/notifications')
   async createNotification(
-    @Body() body: { userId: string; type: string; title: string; message: string; data?: Record<string, unknown> },
+    @Body() body: { userId: string; type: NotificationType; title: string; message: string },
   ) {
-    return this.notificationService.create(body as any)
+    return this.notificationService.create(body)
   }
 
   @ApiDoc({
-    summary: 'Create content (internal)',
-    description: 'Internal endpoint for crossboost-ai to create AI-generated content',
+    summary: 'Create content task (internal)',
+    description: 'Internal endpoint for crossboost-ai to create AI-generated content tasks',
   })
   @Post('/users/:id/content')
   async createContent(
     @Param('id') id: string,
-    @Body() body: { type: string; title: string; body: string; platform: string; tags?: string[] },
+    @Body() body: { type: string; platform?: string; productId?: string; input?: Record<string, any> },
   ) {
     return this.contentService.create(id, body as any)
   }

@@ -2,7 +2,7 @@ import { createZodDto } from '@crossboost/common'
 import { z } from 'zod'
 
 export const ConnectAccountDtoSchema = z.object({
-  platform: z.enum(['tiktok_shop', 'instagram', 'pinterest', 'youtube']).describe('Platform type'),
+  platform: z.enum(['tiktok_shop', 'tiktok', 'instagram', 'pinterest', 'youtube', 'facebook']).describe('Platform type'),
   platformAccountId: z.string().describe('Platform-specific account ID'),
   accountName: z.string().describe('Account display name'),
   avatar: z.string().url().optional().describe('Account avatar URL'),

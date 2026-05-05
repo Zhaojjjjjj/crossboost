@@ -2,6 +2,6 @@
   "name": "crossboost-init",
   "private": true,
   "dependencies": {
-    "mongodb": "^6.0.0"
+    "mysql2": "^3.11.0"
   }
 }

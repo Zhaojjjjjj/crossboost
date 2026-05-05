@@ -46,15 +46,87 @@ export interface WriteListingCopyOutput {
 export const SKILL_DEFINITION = {
   name: 'write-listing-copy' as const,
   description: 'Generate SEO-optimized product listing copy for cross-border e-commerce platforms',
-  requiredInput: ['productName', 'productFeatures', 'targetLanguage', 'targetMarket', 'platform'] as const,
-  optionalInput: ['tone', 'maxLength', 'includeSeoKeywords', 'additionalContext'] as const,
-  outputSchema: {
-    title: 'string',
-    bulletPoints: 'string[]',
-    description: 'string',
-    seoKeywords: 'string[]',
-    language: 'string',
-    market: 'string',
-    platform: 'string',
+  parameters: {
+    productName: { type: 'string', description: 'Product name' },
+    productFeatures: { type: 'array', description: 'Key product features/selling points' },
+    targetLanguage: {
+      type: 'string',
+      description: 'Target language for the listing (e.g., English, Japanese)',
+    },
+    targetMarket: { type: 'string', description: 'Target market (e.g., US, Japan, EU)' },
+    platform: {
+      type: 'string',
+      description: 'E-commerce platform (e.g., Amazon, Shopify, TikTok Shop)',
+    },
+    tone: {
+      type: 'string',
+      description: 'Writing tone: professional, casual, luxury, playful',
+      default: 'professional',
+    },
+    maxLength: { type: 'number', description: 'Maximum description length in characters' },
+    includeSeoKeywords: {
+      type: 'boolean',
+      description: 'Whether to include SEO keyword generation',
+      default: true,
+    },
+    additionalContext: {
+      type: 'string',
+      description: 'Additional context (brand voice, competitor info)',
+      default: '',
+    },
   },
+}
+
+export async function execute(params: Record<string, any>, context: any) {
+  const {
+    productName,
+    productFeatures,
+    targetLanguage,
+    targetMarket,
+    platform,
+    tone = 'professional',
+    maxLength,
+    includeSeoKeywords = true,
+    additionalContext = '',
+  } = params
+
+  // Generate the listing copy using the chat service
+  const listingCopy = await context.chatService.generateListingCopy({
+    productName,
+    productFeatures,
+    targetLanguage,
+    targetMarket,
+    platform,
+    tone,
+    maxLength,
+    includeSeoKeywords,
+  })
+
+  // Generate SEO keywords separately if not included
+  let seoKeywords = listingCopy.seoKeywords ?? []
+  if (includeSeoKeywords && seoKeywords.length === 0) {
+    seoKeywords = await context.chatService.generateSeoKeywords(
+      productName,
+      productFeatures,
+      targetMarket,
+      targetLanguage,
+    )
+  }
+
+  return {
+    type: 'listing',
+    title: listingCopy.title,
+    bulletPoints: listingCopy.bulletPoints,
+    description: listingCopy.description,
+    seoKeywords,
+    language: targetLanguage,
+    market: targetMarket,
+    platform,
+    metadata: {
+      productName,
+      tone,
+      maxLength,
+      featureCount: productFeatures.length,
+    },
+  }
 }

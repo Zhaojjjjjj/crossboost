@@ -16,6 +16,7 @@ export class LoginDto extends createZodDto(LoginDtoSchema, 'LoginDto') {}
 
 export const UpdateProfileDtoSchema = z.object({
   name: z.string().min(1).max(100).optional().describe('User display name'),
-  avatar: z.string().url().optional().describe('Avatar image URL'),
+  timezone: z.string().optional().describe('User timezone'),
+  locale: z.string().optional().describe('User locale'),
 })
 export class UpdateProfileDto extends createZodDto(UpdateProfileDtoSchema, 'UpdateProfileDto') {}

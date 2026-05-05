@@ -1,23 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
 import { AppException, ResponseCode } from '@crossboost/common'
-
-export interface User {
-  id: string
-  email: string
-  name: string
-  avatar?: string
-  passwordHash: string
-  status: 'active' | 'disabled'
-  createdAt: Date
-  updatedAt: Date
-}
+import { User, UserStatus } from '@crossboost/database'
 
 export interface UserProfile {
   id: string
   email: string
   name: string
-  avatar?: string
-  status: string
+  status: UserStatus
+  credits: number
+  locale: string
+  timezone: string | null
   createdAt: Date
 }
 
@@ -25,28 +19,31 @@ export interface UserProfile {
 export class UserService {
   private readonly logger = new Logger(UserService.name)
 
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+  ) {}
+
   async register(email: string, password: string, name: string): Promise<UserProfile> {
-    const existing = await this.getByEmail(email)
+    const existing = await this.userRepo.findOne({ where: { email } })
     if (existing) {
       throw new AppException(ResponseCode.InvalidParam, { message: 'Email already registered' })
     }
 
-    const user: User = {
-      id: this.generateId(),
+    const entity = this.userRepo.create({
       email,
       name,
       passwordHash: this.hashPassword(password),
-      status: 'active',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
+      status: UserStatus.ACTIVE,
+    })
 
+    const user = await this.userRepo.save(entity)
     this.logger.log(`User registered: ${email}`)
     return this.toProfile(user)
   }
 
   async login(email: string, password: string): Promise<{ user: UserProfile; token: string }> {
-    const user = await this.getByEmail(email)
+    const user = await this.userRepo.findOne({ where: { email } })
     if (!user) {
       throw new AppException(ResponseCode.Unauthorized, { message: 'Invalid credentials' })
     }
@@ -61,37 +58,40 @@ export class UserService {
   }
 
   async getProfile(userId: string): Promise<UserProfile> {
-    const user = await this.getById(userId)
+    const user = await this.userRepo.findOne({ where: { id: userId } })
     if (!user) {
       throw new AppException(ResponseCode.NotFound, { message: 'User not found' })
     }
     return this.toProfile(user)
   }
 
-  async updateProfile(userId: string, data: { name?: string; avatar?: string }): Promise<UserProfile> {
-    const user = await this.getById(userId)
+  async getById(id: string): Promise<User | null> {
+    return this.userRepo.findOne({ where: { id } })
+  }
+
+  async getByEmail(email: string): Promise<User | null> {
+    return this.userRepo.findOne({ where: { email } })
+  }
+
+  async updateProfile(userId: string, data: { name?: string; timezone?: string; locale?: string }): Promise<UserProfile> {
+    const user = await this.userRepo.findOne({ where: { id: userId } })
     if (!user) {
       throw new AppException(ResponseCode.NotFound, { message: 'User not found' })
     }
 
-    const updated = {
-      ...user,
-      ...data,
-      updatedAt: new Date(),
-    }
-
+    await this.userRepo.update(userId, data)
+    const updated = await this.userRepo.findOne({ where: { id: userId } })
     this.logger.log(`User profile updated: ${userId}`)
-    return this.toProfile(updated)
+    return this.toProfile(updated!)
   }
 
-  private async getByEmail(_email: string): Promise<User | null> {
-    // Repository call placeholder
-    return null
-  }
-
-  private async getById(_id: string): Promise<User | null> {
-    // Repository call placeholder
-    return null
+  async updateCredits(userId: string, amount: number): Promise<void> {
+    await this.userRepo
+      .createQueryBuilder()
+      .update()
+      .set({ credits: () => `credits + ${amount}` })
+      .where('id = :id', { id: userId })
+      .execute()
   }
 
   private toProfile(user: User): UserProfile {
@@ -99,14 +99,12 @@ export class UserService {
       id: user.id,
       email: user.email,
       name: user.name,
-      avatar: user.avatar,
       status: user.status,
+      credits: Number(user.credits),
+      locale: user.locale,
+      timezone: user.timezone,
       createdAt: user.createdAt,
     }
-  }
-
-  private generateId(): string {
-    return `usr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
   }
 
   private hashPassword(password: string): string {

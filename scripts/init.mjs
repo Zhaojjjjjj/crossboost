@@ -1,56 +1,30 @@
-import { MongoClient } from 'mongodb'
-import { randomBytes } from 'crypto'
-import { writeFileSync } from 'fs'
+import mysql from 'mysql2/promise'
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:password@mongodb:27017'
-const DB_NAME = process.env.DB_NAME || 'crossboost'
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-jwt-secret'
-const AUTO_LOGIN_TOKEN_PATH = process.env.AUTO_LOGIN_TOKEN_PATH || '/data/init/token.txt'
+const DB_HOST = process.env.DB_HOST || 'localhost'
+const DB_PORT = Number(process.env.DB_PORT) || 3306
+const DB_USERNAME = process.env.DB_USERNAME || 'crossboost'
+const DB_PASSWORD = process.env.DB_PASSWORD || 'crossboost123'
+const DB_DATABASE = process.env.DB_DATABASE || 'crossboost'
 
 async function main() {
   console.log('Initializing CrossBoost database...')
 
-  const client = new MongoClient(MONGO_URI)
-  await client.connect()
-  const db = client.db(DB_NAME)
+  const connection = await mysql.createConnection({
+    host: DB_HOST,
+    port: DB_PORT,
+    user: DB_USERNAME,
+    password: DB_PASSWORD,
+    multipleStatements: true,
+  })
 
-  // Create collections
-  const collections = [
-    'users', 'accounts', 'products', 'content-tasks',
-    'publish-records', 'analytics-records', 'credits-balances',
-    'credits-records', 'notifications', 'oauth2-credentials',
-    'api-keys', 'assets', 'materials',
-  ]
+  // Create database if not exists
+  await connection.execute(`CREATE DATABASE IF NOT EXISTS \`${DB_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
+  await connection.execute(`USE \`${DB_DATABASE}\``)
 
-  for (const name of collections) {
-    try {
-      await db.createCollection(name)
-      console.log(`  Created collection: ${name}`)
-    } catch (e) {
-      if (e.codeName === 'NamespaceExists') {
-        console.log(`  Collection already exists: ${name}`)
-      } else {
-        throw e
-      }
-    }
-  }
+  // Tables are auto-created by TypeORM synchronize:true
+  // This init script just ensures the database exists
 
-  // Create indexes
-  await db.collection('users').createIndex({ email: 1 }, { unique: true })
-  await db.collection('products').createIndex({ userId: 1, sku: 1 })
-  await db.collection('publish-records').createIndex({ userId: 1, status: 1 })
-  await db.collection('analytics-records').createIndex({ contentId: 1, platform: 1 })
-
-  // Generate auto-login token
-  const token = randomBytes(32).toString('hex')
-  try {
-    writeFileSync(AUTO_LOGIN_TOKEN_PATH, token)
-    console.log(`  Auto-login token written to ${AUTO_LOGIN_TOKEN_PATH}`)
-  } catch {
-    console.log('  Could not write auto-login token (volume may not be mounted)')
-  }
-
-  await client.close()
+  await connection.end()
   console.log('Database initialization complete!')
 }
 

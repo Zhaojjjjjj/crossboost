@@ -12,8 +12,8 @@ export class ContentController {
   constructor(private readonly contentService: ContentService) {}
 
   @ApiDoc({
-    summary: 'Create content',
-    description: 'Create new content for publishing',
+    summary: 'Create content task',
+    description: 'Create a new content generation task',
     body: CreateContentDtoSchema,
   })
   @Post('/')
@@ -23,8 +23,8 @@ export class ContentController {
   }
 
   @ApiDoc({
-    summary: 'List content',
-    description: 'List all content with pagination and filters',
+    summary: 'List content tasks',
+    description: 'List all content tasks with pagination and filters',
     query: ListContentDtoSchema,
   })
   @Get('/')
@@ -34,8 +34,8 @@ export class ContentController {
   }
 
   @ApiDoc({
-    summary: 'Get content detail',
-    description: 'Get a single content item by ID',
+    summary: 'Get content task detail',
+    description: 'Get a single content task by ID',
   })
   @Get('/:id')
   async getContent(@Param('id') id: string) {
@@ -44,8 +44,8 @@ export class ContentController {
   }
 
   @ApiDoc({
-    summary: 'Update content',
-    description: 'Update content details',
+    summary: 'Update content task',
+    description: 'Update content task details',
     body: UpdateContentDtoSchema,
   })
   @Patch('/:id')
@@ -55,8 +55,8 @@ export class ContentController {
   }
 
   @ApiDoc({
-    summary: 'Delete content',
-    description: 'Soft delete a content item',
+    summary: 'Delete content task',
+    description: 'Soft delete a content task',
   })
   @Delete('/:id')
   async deleteContent(@Param('id') id: string) {

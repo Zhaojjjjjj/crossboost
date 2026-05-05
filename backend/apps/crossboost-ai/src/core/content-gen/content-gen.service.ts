@@ -1,4 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import {
+  ContentTask,
+  ContentTaskType,
+  ContentTaskStatus,
+} from '@crossboost/database'
 import { ChatService } from '../ai/chat/chat.service'
 import { ImageService } from '../ai/image/image.service'
 
@@ -71,7 +78,7 @@ export interface GeneratedContent {
 }
 
 export interface ContentGenPipelineResult {
-  /** Pipeline execution ID */
+  /** Pipeline execution ID (content task UUID) */
   pipelineId: string
   /** Generated content per target */
   results: GeneratedContent[]
@@ -86,6 +93,8 @@ export class ContentGenService {
   private readonly logger = new Logger(ContentGenService.name)
 
   constructor(
+    @InjectRepository(ContentTask)
+    private readonly taskRepo: Repository<ContentTask>,
     private readonly chatService: ChatService,
     private readonly imageService: ImageService,
   ) {}
@@ -98,86 +107,129 @@ export class ContentGenService {
     onProgress?: (target: string, progress: number) => void,
   ): Promise<ContentGenPipelineResult> {
     const startTime = Date.now()
-    const pipelineId = `pipeline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    this.logger.log(`Starting content generation pipeline: ${pipelineId}`)
+    this.logger.log('Starting content generation pipeline')
+
+    // Create a ContentTask record to track this pipeline run
+    const task = this.taskRepo.create({
+      userId: 'system',
+      type: ContentTaskType.COPY,
+      status: ContentTaskStatus.PROCESSING,
+      input: input as unknown as Record<string, any>,
+      platform: input.targets[0]?.platform ?? null,
+    })
+    const savedTask = await this.taskRepo.save(task)
+    const pipelineId = savedTask.id
 
     const results: GeneratedContent[] = []
     let totalTokens = 0
 
-    for (let i = 0; i < input.targets.length; i++) {
-      const target = input.targets[i]
-      onProgress?.(`${target.market}/${target.language}`, Math.round((i / input.targets.length) * 100))
+    try {
+      for (let i = 0; i < input.targets.length; i++) {
+        const target = input.targets[i]
+        onProgress?.(
+          `${target.market}/${target.language}`,
+          Math.round((i / input.targets.length) * 100),
+        )
 
-      const content: GeneratedContent = {
-        target,
+        const content: GeneratedContent = {
+          target,
+        }
+
+        // Generate listing copy
+        if (input.contentTypes.includes('listing')) {
+          this.logger.log(`Generating listing for ${target.market}/${target.platform}`)
+          const listing = await this.chatService.generateListingCopy({
+            productName: input.product.name,
+            productFeatures: input.product.features,
+            targetLanguage: target.language,
+            targetMarket: target.market,
+            platform: target.platform,
+            tone: input.brandGuidelines?.tone as
+              | 'professional'
+              | 'casual'
+              | 'luxury'
+              | 'playful'
+              | undefined,
+            includeSeoKeywords: true,
+          })
+          content.listing = listing
+        }
+
+        // Generate social media content
+        if (input.contentTypes.includes('social')) {
+          this.logger.log(`Generating social content for ${target.market}`)
+          const social = await this.generateSocialContent(
+            input.product,
+            target,
+            input.brandGuidelines,
+          )
+          content.social = social
+        }
+
+        // Generate email content
+        if (input.contentTypes.includes('email')) {
+          this.logger.log(`Generating email content for ${target.market}`)
+          const email = await this.generateEmailContent(
+            input.product,
+            target,
+            input.brandGuidelines,
+          )
+          content.email = email
+        }
+
+        // Generate ad copy
+        if (input.contentTypes.includes('ads')) {
+          this.logger.log(`Generating ad copy for ${target.market}`)
+          const ads = await this.generateAdCopy(
+            input.product,
+            target,
+            input.brandGuidelines,
+          )
+          content.ads = ads
+        }
+
+        results.push(content)
       }
 
-      // Generate listing copy
-      if (input.contentTypes.includes('listing')) {
-        this.logger.log(`Generating listing for ${target.market}/${target.platform}`)
-        const listing = await this.chatService.generateListingCopy({
+      // Generate images (done once, shared across targets)
+      if (input.contentTypes.includes('images')) {
+        this.logger.log('Generating product images')
+        const imageResult = await this.imageService.generateProductImages({
           productName: input.product.name,
-          productFeatures: input.product.features,
-          targetLanguage: target.language,
-          targetMarket: target.market,
-          platform: target.platform,
-          tone: input.brandGuidelines?.tone as 'professional' | 'casual' | 'luxury' | 'playful' | undefined,
-          includeSeoKeywords: true,
-        })
-        content.listing = listing
-      }
-
-      // Generate social media content
-      if (input.contentTypes.includes('social')) {
-        this.logger.log(`Generating social content for ${target.market}`)
-        const social = await this.generateSocialContent(input.product, target, input.brandGuidelines)
-        content.social = social
-      }
-
-      // Generate email content
-      if (input.contentTypes.includes('email')) {
-        this.logger.log(`Generating email content for ${target.market}`)
-        const email = await this.generateEmailContent(input.product, target, input.brandGuidelines)
-        content.email = email
-      }
-
-      // Generate ad copy
-      if (input.contentTypes.includes('ads')) {
-        this.logger.log(`Generating ad copy for ${target.market}`)
-        const ads = await this.generateAdCopy(input.product, target, input.brandGuidelines)
-        content.ads = ads
-      }
-
-      results.push(content)
-    }
-
-    // Generate images (done once, shared across targets)
-    if (input.contentTypes.includes('images')) {
-      this.logger.log('Generating product images')
-      const imageResult = await this.imageService.generateProductImages({
-        productName: input.product.name,
-        productCategory: input.product.category,
-        targetMarket: input.targets[0]?.market ?? 'global',
-        style: 'white-background',
-      })
-
-      // Attach images to all results
-      for (const result of results) {
-        result.images = imageResult.images.map((img) => ({
-          url: img.url,
+          productCategory: input.product.category,
+          targetMarket: input.targets[0]?.market ?? 'global',
           style: 'white-background',
-          revisedPrompt: img.revisedPrompt,
-        }))
+        })
+
+        // Attach images to all results
+        for (const result of results) {
+          result.images = imageResult.images.map((img) => ({
+            url: img.url,
+            style: 'white-background',
+            revisedPrompt: img.revisedPrompt,
+          }))
+        }
       }
-    }
 
-    onProgress?.('complete', 100)
+      // Mark task as completed
+      savedTask.status = ContentTaskStatus.COMPLETED
+      savedTask.result = { results, totalTokens } as Record<string, any>
+      await this.taskRepo.save(savedTask)
 
-    return {
-      pipelineId,
-      results,
-      totalTokens,
-      processingTimeMs: Date.now() - startTime,
+      onProgress?.('complete', 100)
+
+      return {
+        pipelineId,
+        results,
+        totalTokens,
+        processingTimeMs: Date.now() - startTime,
+      }
+    } catch (error) {
+      // Mark task as failed
+      savedTask.status = ContentTaskStatus.FAILED
+      savedTask.error = error instanceof Error ? error.message : String(error)
+      await this.taskRepo.save(savedTask)
+      throw error
     }
   }
 
@@ -213,11 +265,21 @@ export class ContentGenService {
     targetLanguage: string,
     targetMarket: string,
   ) {
-    const title = await this.chatService.translateContent(listing.title, targetLanguage, 'Product title')
-    const bulletPoints = await Promise.all(
-      listing.bulletPoints.map((bp) => this.chatService.translateContent(bp, targetLanguage, 'Product bullet point')),
+    const title = await this.chatService.translateContent(
+      listing.title,
+      targetLanguage,
+      'Product title',
     )
-    const description = await this.chatService.translateContent(listing.description, targetLanguage, 'Product description')
+    const bulletPoints = await Promise.all(
+      listing.bulletPoints.map((bp) =>
+        this.chatService.translateContent(bp, targetLanguage, 'Product bullet point'),
+      ),
+    )
+    const description = await this.chatService.translateContent(
+      listing.description,
+      targetLanguage,
+      'Product description',
+    )
 
     return { title, bulletPoints, description }
   }

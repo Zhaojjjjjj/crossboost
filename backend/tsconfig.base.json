@@ -12,7 +12,7 @@
     "useDefineForClassFields": false,
     "paths": {
       "@crossboost/common": ["libs/common/src/index.ts"],
-      "@crossboost/mongodb": ["libs/mongodb/src/index.ts"],
+      "@crossboost/database": ["libs/database/src/index.ts"],
       "@crossboost/auth": ["libs/auth/src/index.ts"],
       "@crossboost/queue": ["libs/queue/src/index.ts"],
       "@crossboost/redis": ["libs/redis/src/index.ts"],

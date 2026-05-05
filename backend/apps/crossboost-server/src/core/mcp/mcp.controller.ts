@@ -69,11 +69,8 @@ export class McpController {
               name: { type: 'string' },
               description: { type: 'string' },
               sku: { type: 'string' },
-              price: { type: 'number' },
-              currency: { type: 'string' },
-              category: { type: 'string' },
             },
-            required: ['name', 'sku', 'price'],
+            required: ['name', 'sku'],
           },
         },
         {
@@ -84,8 +81,8 @@ export class McpController {
             properties: {
               page: { type: 'number' },
               pageSize: { type: 'number' },
-              type: { type: 'string', enum: ['post', 'video', 'image', 'story', 'reel'] },
-              status: { type: 'string', enum: ['draft', 'scheduled', 'published', 'archived'] },
+              type: { type: 'string', enum: ['video', 'image', 'copy', 'adaptation'] },
+              status: { type: 'string', enum: ['pending', 'processing', 'completed', 'failed'] },
             },
           },
         },
@@ -93,16 +90,6 @@ export class McpController {
           name: 'list_accounts',
           description: 'List connected platform accounts',
           inputSchema: { type: 'object', properties: {} },
-        },
-        {
-          name: 'get_analytics',
-          description: 'Get aggregated analytics data',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              platform: { type: 'string', enum: ['tiktok_shop', 'instagram', 'pinterest', 'youtube'] },
-            },
-          },
         },
       ],
     }

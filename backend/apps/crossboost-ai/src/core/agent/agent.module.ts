@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import { ContentTask } from '@crossboost/database'
 import { AgentService } from './agent.service'
 import { AgentController } from './agent.controller'
 import { AgentRuntimeService } from './services/agent-runtime.service'
@@ -6,7 +8,7 @@ import { AiModule } from '../ai/ai.module'
 import { ContentGenModule } from '../content-gen/content-gen.module'
 
 @Module({
-  imports: [AiModule, ContentGenModule],
+  imports: [TypeOrmModule.forFeature([ContentTask]), AiModule, ContentGenModule],
   controllers: [AgentController],
   providers: [AgentService, AgentRuntimeService],
   exports: [AgentService],

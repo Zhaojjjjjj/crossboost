@@ -29,11 +29,11 @@ export class AccountController {
     const userId = 'current-user-id'
     return this.accountService.connect(userId, body.platform, {
       platformAccountId: body.platformAccountId,
-      accountName: body.accountName,
-      avatar: body.avatar,
+      displayName: body.accountName,
+      avatarUrl: body.avatar,
       accessToken: body.accessToken,
       refreshToken: body.refreshToken,
-      tokenExpiresAt: body.tokenExpiresAt,
+      expiresAt: body.tokenExpiresAt,
       metadata: body.metadata,
     })
   }

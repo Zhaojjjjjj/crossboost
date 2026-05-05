@@ -1,36 +1,26 @@
 services:
-  mongodb:
-    image: mongo:latest
-    container_name: crossboost-mongodb
+  mysql:
+    image: mysql:8.0
+    container_name: crossboost-mysql
     restart: unless-stopped
-    entrypoint: ["bash", "-c", "openssl rand -base64 756 > /data/mongodb-keyfile && chmod 400 /data/mongodb-keyfile && chown mongodb:mongodb /data/mongodb-keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /data/mongodb-keyfile"]
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: crossboost
+      MYSQL_USER: crossboost
+      MYSQL_PASSWORD: crossboost123
     ports:
-      - "27017:27017"
+      - "3306:3306"
     volumes:
-      - mongodb-data:/data/db
-      - mongodb-config:/data/configdb
+      - mysql-data:/var/lib/mysql
     networks:
       - crossboost-network
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: mongosh --quiet --eval "try { rs.status().ok } catch(e) { 0 }"
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 40s
-
-  mongodb-rs-init:
-    image: mongo:latest
-    container_name: crossboost-mongodb-rs-init
-    depends_on:
-      mongodb:
-        condition: service_started
-    entrypoint: ["/bin/sh", "-c", "sleep 5 && mongosh mongodb://admin:password@mongodb:27017/?authSource=admin --eval \"try { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongodb:27017'}]}) } catch(e) { if (e.codeName!=='AlreadyInitialized') throw e }\""]
-    restart: "no"
-    networks:
-      - crossboost-network
+      start_period: 30s
 
   redis:
     image: redis:latest
@@ -96,7 +86,7 @@ services:
     container_name: crossboost-ai
     restart: unless-stopped
     depends_on:
-      mongodb:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -106,7 +96,11 @@ services:
       NODE_ENV: production
       PORT: 3010
 
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/crossboost?authSource=admin
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: crossboost
+      DB_PASSWORD: crossboost123
+      DB_DATABASE: crossboost
 
       REDIS_URL: redis://:password@redis:6379
 
@@ -140,7 +134,7 @@ services:
     container_name: crossboost-server
     restart: unless-stopped
     depends_on:
-      mongodb:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -152,7 +146,11 @@ services:
       NODE_ENV: production
       PORT: 3002
 
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/crossboost?authSource=admin
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: crossboost
+      DB_PASSWORD: crossboost123
+      DB_DATABASE: crossboost
 
       REDIS_URL: redis://:password@redis:6379
 
@@ -228,9 +226,7 @@ networks:
     name: crossboost-network
 
 volumes:
-  mongodb-data:
-    driver: local
-  mongodb-config:
+  mysql-data:
     driver: local
   redis-data:
     driver: local

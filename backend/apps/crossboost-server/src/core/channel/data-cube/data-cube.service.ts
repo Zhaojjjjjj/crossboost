@@ -1,10 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
 import { AppException, ResponseCode } from '@crossboost/common'
+import { AnalyticsRecord } from '@crossboost/database'
 import { BaseDataProvider, DataCubeResult } from './providers/base-data.provider'
 import { TikTokDataProvider } from './providers/tiktok-data.provider'
 import { InstagramDataProvider } from './providers/instagram-data.provider'
+import { PinterestDataProvider } from './providers/pinterest-data.provider'
+import { YoutubeDataProvider } from './providers/youtube-data.provider'
 
-export type PlatformType = 'tiktok_shop' | 'instagram'
+export type PlatformType = 'tiktok_shop' | 'instagram' | 'pinterest' | 'youtube'
 
 @Injectable()
 export class DataCubeService {
@@ -12,12 +17,18 @@ export class DataCubeService {
   private readonly providers: Record<string, BaseDataProvider>
 
   constructor(
+    @InjectRepository(AnalyticsRecord)
+    private readonly analyticsRepo: Repository<AnalyticsRecord>,
     private readonly tiktokProvider: TikTokDataProvider,
     private readonly instagramProvider: InstagramDataProvider,
+    private readonly pinterestProvider: PinterestDataProvider,
+    private readonly youtubeProvider: YoutubeDataProvider,
   ) {
     this.providers = {
       tiktok_shop: this.tiktokProvider,
       instagram: this.instagramProvider,
+      pinterest: this.pinterestProvider,
+      youtube: this.youtubeProvider,
     }
   }
 
@@ -49,12 +60,19 @@ export class DataCubeService {
     platformBreakdown: Record<string, { followers: number; views: number; likes: number }>
   }> {
     this.logger.log(`Getting aggregated data for user: ${userId}`)
-    // Aggregate data across all connected accounts
+
+    // Query analytics records from database
+    const records = await this.analyticsRepo.find({
+      where: platforms ? { platform: platforms[0] } : {},
+      order: { recordedAt: 'DESC' },
+      take: 100,
+    })
+
     return {
       totalFollowers: 0,
-      totalViews: 0,
-      totalLikes: 0,
-      totalEngagement: 0,
+      totalViews: records.reduce((sum, r) => sum + r.views, 0),
+      totalLikes: records.reduce((sum, r) => sum + r.likes, 0),
+      totalEngagement: records.reduce((sum, r) => sum + r.comments + r.shares + r.saves, 0),
       platformBreakdown: {},
     }
   }

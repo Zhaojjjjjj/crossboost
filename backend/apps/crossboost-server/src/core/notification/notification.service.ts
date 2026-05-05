@@ -1,70 +1,82 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import { Notification, NotificationType } from '@crossboost/database'
 
-export type NotificationType = 'publish_success' | 'publish_failed' | 'credit_low' | 'account_expired' | 'system'
-
-export interface Notification {
-  id: string
-  userId: string
-  type: NotificationType
-  title: string
-  message: string
-  read: boolean
-  data?: Record<string, unknown>
-  createdAt: Date
+export interface NotificationListResult {
+  items: Notification[]
+  total: number
+  unreadCount: number
 }
 
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name)
 
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationRepo: Repository<Notification>,
+  ) {}
+
   async create(data: {
     userId: string
     type: NotificationType
     title: string
     message: string
-    data?: Record<string, unknown>
   }): Promise<Notification> {
-    const notification: Notification = {
-      id: this.generateId(),
+    const entity = this.notificationRepo.create({
       userId: data.userId,
       type: data.type,
       title: data.title,
       message: data.message,
-      read: false,
-      data: data.data,
-      createdAt: new Date(),
-    }
+      isRead: false,
+    })
 
+    const notification = await this.notificationRepo.save(entity)
     this.logger.log(`Notification created: ${data.type} for user: ${data.userId}`)
     return notification
   }
 
-  async listByUser(userId: string, query: { page?: number; pageSize?: number; unreadOnly?: boolean }): Promise<{
-    items: Notification[]
-    total: number
-    unreadCount: number
-  }> {
+  async listByUser(userId: string, query: { page?: number; pageSize?: number; unreadOnly?: boolean }): Promise<NotificationListResult> {
+    const page = query.page ?? 1
+    const pageSize = query.pageSize ?? 20
+    const skip = (page - 1) * pageSize
+
+    const where: any = { userId }
+    if (query.unreadOnly) {
+      where.isRead = false
+    }
+
+    const [items, total] = await this.notificationRepo.findAndCount({
+      where,
+      skip,
+      take: pageSize,
+      order: { createdAt: 'DESC' },
+    })
+
+    const unreadCount = await this.notificationRepo.count({
+      where: { userId, isRead: false },
+    })
+
     this.logger.log(`Listing notifications for user: ${userId}`)
     return {
-      items: [],
-      total: 0,
-      unreadCount: 0,
+      items,
+      total,
+      unreadCount,
     }
   }
 
   async markAsRead(id: string, userId: string): Promise<void> {
+    await this.notificationRepo.update({ id, userId }, { isRead: true })
     this.logger.log(`Notification marked as read: ${id}`)
   }
 
   async markAllAsRead(userId: string): Promise<void> {
+    await this.notificationRepo.update({ userId, isRead: false }, { isRead: true })
     this.logger.log(`All notifications marked as read for user: ${userId}`)
   }
 
   async getUnreadCount(userId: string): Promise<number> {
-    return 0
-  }
-
-  private generateId(): string {
-    return `ntf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+    return this.notificationRepo.count({ where: { userId, isRead: false } })
   }
 }

@@ -161,7 +161,8 @@ export class InternalController {
    * Get available agent skills.
    */
   @Get('agent/skills')
-  getAgentSkills() {
-    return this.agentService.listTasks({}).tasks.length // Return skill definitions instead
+  async getAgentSkills() {
+    const { total } = await this.agentService.listTasks({})
+    return { totalSkills: total }
   }
 }

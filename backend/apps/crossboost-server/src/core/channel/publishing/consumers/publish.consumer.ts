@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { PublishingService, PublishTask } from '../publishing.service'
+import { PublishingService } from '../publishing.service'
 
 export interface PublishJobData {
-  taskId: string
+  recordId: string
   userId: string
   accountId: string
   platform: string
-  content: PublishTask['content']
+  contentId?: string
+  caption?: string
+  media?: Record<string, any>
 }
 
 @Injectable()
@@ -16,20 +18,9 @@ export class PublishConsumer {
   constructor(private readonly publishingService: PublishingService) {}
 
   async handlePublishJob(data: PublishJobData): Promise<void> {
-    this.logger.log(`Processing publish job for task: ${data.taskId}`)
+    this.logger.log(`Processing publish job for record: ${data.recordId}`)
 
-    const task: PublishTask = {
-      id: data.taskId,
-      userId: data.userId,
-      accountId: data.accountId,
-      platform: data.platform as PublishTask['platform'],
-      content: data.content,
-      status: 'publishing',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-
-    await this.publishingService.executeTask(task)
-    this.logger.log(`Publish job completed for task: ${data.taskId}`)
+    await this.publishingService.executeTask(data.recordId)
+    this.logger.log(`Publish job completed for record: ${data.recordId}`)
   }
 }
