@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@crossboost/common": "workspace:*",
-    "@crossboost/mongodb": "workspace:*",
+    "@crossboost/database": "workspace:*",
     "@crossboost/auth": "workspace:*",
     "@crossboost/queue": "workspace:*",
     "@crossboost/redis": "workspace:*",
@@ -16,7 +16,7 @@
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/swagger": "^11.0.0",
     "@nestjs/event-emitter": "^3.0.0",
-    "@nestjs/bullmq": "^5.0.0",
+    "@nestjs/bullmq": "^11.0.0",
     "@nestjs/schedule": "^5.0.0",
     "bullmq": "^5.30.0",
     "class-transformer": "^0.5.1",

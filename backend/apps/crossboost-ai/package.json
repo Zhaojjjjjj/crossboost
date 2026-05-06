@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@crossboost/common": "workspace:*",
-    "@crossboost/mongodb": "workspace:*",
+    "@crossboost/database": "workspace:*",
     "@crossboost/auth": "workspace:*",
     "@crossboost/queue": "workspace:*",
     "@crossboost/redis": "workspace:*",

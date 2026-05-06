@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920" />
+<title>CrossBoost · AI-Powered Cross-Border E-Commerce</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,600;0,8..60,700;1,8..60,300&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+#root { width: 100%; height: 100%; }
+
+/* ── Scene backgrounds ── */
+.scene { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+.scene-dark { background: linear-gradient(135deg, #0c1929 0%, #0f2847 40%, #0c1929 100%); }
+.scene-gradient { background: linear-gradient(160deg, #0c1929 0%, #163a5f 50%, #1a6b3c 100%); }
+.scene-analytic { background: linear-gradient(180deg, #0c1929 0%, #111d2e 100%); }
+.scene-cta { background: linear-gradient(160deg, #0c1929 0%, #1e3a8a 60%, #0c1929 100%); }
+
+/* ── Transitions ── */
+.anim { opacity: 0; transform: translateY(20px); transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1); }
+.anim.show { opacity: 1; transform: translateY(0); }
+.anim-scale { opacity: 0; transform: scale(0.9); transition: opacity 0.5s cubic-bezier(0.16,1,0.3,1), transform 0.5s cubic-bezier(0.16,1,0.3,1); }
+.anim-scale.show { opacity: 1; transform: scale(1); }
+.anim-left { opacity: 0; transform: translateX(-40px); transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1); }
+.anim-left.show { opacity: 1; transform: translateX(0); }
+.anim-right { opacity: 0; transform: translateX(40px); transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1); }
+.anim-right.show { opacity: 1; transform: translateX(0); }
+.anim-up { opacity: 0; transform: translateY(30px); transition: opacity 0.5s cubic-bezier(0.16,1,0.3,1), transform 0.5s cubic-bezier(0.16,1,0.3,1); }
+.anim-up.show { opacity: 1; transform: translateY(0); }
+
+/* ── Typography ── */
+.t-display { font-family: 'Source Serif 4', Georgia, serif; }
+.t-ui { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+.t-mono { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
+
+/* ── Progress bar animation ── */
+.progress-bar-fill { transition: width 1s cubic-bezier(0.16,1,0.3,1); }
+.bar-grow { transform-origin: bottom; transition: transform 0.6s cubic-bezier(0.16,1,0.3,1); }
+
+/* ── Glow pulse ── */
+@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+.glow-pulse { animation: pulse 2s ease-in-out infinite; }
+@keyframes orbit { from { transform: rotate(0deg) translateX(140px) rotate(0deg); } to { transform: rotate(360deg) translateX(140px) rotate(-360deg); } }
+@keyframes sparkle { 0%, 100% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: scale(1); } }
+
+/* ── Skill tag ── */
+.skill-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
+
+/* ── Bar chart ── */
+.chart-bar { transform-origin: bottom; transition: transform 0.8s cubic-bezier(0.16,1,0.3,1); }
+
+/* ── Platform card hover (static, no hover needed for video) ── */
+.plat-card { transition: box-shadow 0.3s; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { createContext, useContext, useState, useEffect, useRef, useCallback } = React;
+
+/* ═══════════════════════════════════════════════════
+   ANIMATION ENGINE (Stage + Sprite)
+   ═══════════════════════════════════════════════════ */
+const TimeCtx = createContext({ time: 0, duration: 90, playing: false });
+const SpriteCtx = createContext(null);
+
+const Easing = {
+  linear: t => t,
+  easeIn: t => t * t,
+  easeOut: t => 1 - (1 - t) * (1 - t),
+  easeInOut: t => t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2,
+  expoOut: t => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
+  overshoot: t => { const c1=1.70158, c3=c1+1; return 1 + c3*Math.pow(t-1,3) + c1*Math.pow(t-1,2); },
+  spring: t => { const c=(2*Math.PI)/3; return t===0?0:t===1?1:Math.pow(2,-10*t)*Math.sin((t*10-0.75)*c)+1; },
+};
+
+function interpolate(t, input, output, easing) {
+  const [i0, i1] = input, [o0, o1] = output;
+  if (t <= i0) return o0;
+  if (t >= i1) return o1;
+  let p = (t - i0) / (i1 - i0);
+  if (easing) p = easing(p);
+  return o0 + (o1 - o0) * p;
+}
+
+function useTime() { return useContext(TimeCtx).time; }
+function useSprite() { return useContext(SpriteCtx) || { t:0, elapsed:0, duration:0 }; }
+
+/* ── Stage ── */
+function Stage({ duration=90, width=1920, height=1080, children, bgColor='#0c1929' }) {
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [scale, setScale] = useState(1);
+  const rafRef = useRef(null);
+  const lastRef = useRef(null);
+  const effectiveLoop = (typeof window !== 'undefined' && window.__recording) ? false : true;
+
+  useEffect(() => {
+    function resize() {
+      const s = Math.min(window.innerWidth / width, (window.innerHeight - 56) / height);
+      setScale(s);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, [width, height]);
+
+  useEffect(() => {
+    if (!playing) return;
+    let cancelled = false;
+    function tick(now) {
+      if (cancelled) return;
+      if (lastRef.current === null) { lastRef.current = now; window.__ready = true; }
+      const dt = (now - lastRef.current) / 1000;
+      lastRef.current = now;
+      setTime(prev => {
+        let next = prev + dt;
+        if (next >= duration) { next = effectiveLoop ? 0 : duration - 0.001; }
+        return next;
+      });
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    const go = () => { if (!cancelled) rafRef.current = requestAnimationFrame(tick); };
+    document.fonts && document.fonts.ready ? document.fonts.ready.then(go) : go();
+    return () => { cancelled = true; cancelAnimationFrame(rafRef.current); };
+  }, [playing, duration, effectiveLoop]);
+
+  const handleSeek = useCallback(e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTime(Math.max(0, Math.min(duration, ((e.clientX - r.left) / r.width) * duration)));
+    setPlaying(false);
+  }, [duration]);
+
+  const progress = time / duration;
+  const ctx = { time, duration, playing, setPlaying, setTime };
+
+  return (
+    <TimeCtx.Provider value={ctx}>
+      <div style={{ position:'fixed', inset:0, background:'#000', display:'flex', flexDirection:'column', fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}>
+        <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
+          <div style={{ position:'absolute', top:'50%', left:'50%', transformOrigin:'center center', width, height, background:bgColor, transform:`translate(-50%,-50%) scale(${scale})`, overflow:'hidden' }}>
+            {children}
+          </div>
+        </div>
+        <div className="no-record" style={{ position:'fixed', bottom:0, left:0, right:0, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(10px)', padding:'12px 20px', display:'flex', alignItems:'center', gap:16, color:'#fff', fontSize:12, zIndex:100 }}>
+          <button style={{ background:'none', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:4, cursor:'pointer', fontSize:12 }} onClick={() => setPlaying(p=>!p)}>{playing?'⏸':'▶'}</button>
+          <button style={{ background:'none', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:4, cursor:'pointer', fontSize:12 }} onClick={() => { setTime(0); lastRef.current=null; }}>⏮</button>
+          <span style={{ fontFamily:'ui-monospace,monospace', fontVariantNumeric:'tabular-nums', minWidth:100 }}>{time.toFixed(2)}s / {duration.toFixed(2)}s</span>
+          <div style={{ flex:1, height:4, background:'rgba(255,255,255,0.2)', borderRadius:2, position:'relative', cursor:'pointer' }} onMouseDown={handleSeek}>
+            <div style={{ position:'absolute', top:0, left:0, height:'100%', width:`${progress*100}%`, background:'#fff', borderRadius:2, pointerEvents:'none' }} />
+            <div style={{ position:'absolute', top:'50%', left:`${progress*100}%`, width:12, height:12, background:'#fff', borderRadius:'50%', transform:'translate(-50%,-50%)', pointerEvents:'none' }} />
+          </div>
+        </div>
+      </div>
+    </TimeCtx.Provider>
+  );
+}
+
+/* ── Sprite ── */
+function Sprite({ start=0, end, children, style }) {
+  const { time } = useContext(TimeCtx);
+  const actualEnd = end == null ? Infinity : end;
+  if (time < start || time >= actualEnd) return null;
+  const dur = actualEnd - start;
+  const t = dur === 0 ? 1 : Math.max(0, Math.min(1, (time - start) / dur));
+  return <SpriteCtx.Provider value={{ t, elapsed: time-start, duration:dur, start, end:actualEnd }}>
+    <div style={{ position:'absolute', inset:0, ...style }}>{children}</div>
+  </SpriteCtx.Provider>;
+}
+
+/* ═══════════════════════════════════════════════════
+   COLOR PALETTE
+   ═══════════════════════════════════════════════════ */
+const C = {
+  primary: '#3b82f6', primaryDark: '#1e3a8a', primaryLight: '#93c5fd',
+  accent: '#22c55e', accentDark: '#14532d',
+  bg: '#0c1929', bgLight: '#111d2e', bgCard: '#162033',
+  white: '#ffffff', text: '#cbd5e1', textMuted: '#64748b',
+  red: '#ef4444', orange: '#f97316', purple: '#a855f7',
+  pink: '#ec4899', yellow: '#eab308', cyan: '#06b6d4',
+};
+
+/* ═══════════════════════════════════════════════════
+   SCENE 1 · THE PROBLEM (0–15s)
+   ═══════════════════════════════════════════════════ */
+function Scene1() {
+  const { t } = useSprite();
+  return (
+    <div className="scene scene-dark t-ui" style={{ padding:'0 120px' }}>
+      {/* Chapter label */}
+      <div className={`anim ${t > 0.02 ? 'show' : ''}`} style={{ position:'absolute', top:56, left:120, fontSize:13, color:C.primary, letterSpacing:'0.15em', textTransform:'uppercase', fontWeight:600 }}>
+        01 — The Problem
+      </div>
+
+      {/* Main title */}
+      <div className={`anim ${t > 0.05 ? 'show' : ''}`} style={{ position:'absolute', top:100, left:120, right:120 }}>
+        <div className="t-display" style={{ fontSize:54, fontWeight:700, color:C.white, lineHeight:1.2, letterSpacing:'-0.02em' }}>
+          Cross-border sellers spend<br/>
+          <span style={{ color:C.red }}>80% of their time</span> on content.
+        </div>
+        <div className={`anim ${t > 0.15 ? 'show' : ''}`} style={{ marginTop:20, fontSize:20, color:C.text, lineHeight:1.6, maxWidth:700 }}>
+          Creating product videos, listing images, and multilingual copy for each platform manually — while competitors ship 10× faster with AI.
+        </div>
+      </div>
+
+      {/* Progress bar: 80% time on content */}
+      <div className={`anim-left ${t > 0.25 ? 'show' : ''}`} style={{ position:'absolute', bottom:280, left:120, width:700 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, fontSize:13, color:C.textMuted }}>
+          <span>Time spent on content creation</span><span className="t-mono" style={{ color:C.red, fontWeight:600 }}>80%</span>
+        </div>
+        <div style={{ height:8, background:'rgba(255,255,255,0.08)', borderRadius:4, overflow:'hidden' }}>
+          <div className="progress-bar-fill" style={{ height:'100%', width: t > 0.3 ? '80%' : '0%', background:`linear-gradient(90deg, ${C.red}, ${C.orange})`, borderRadius:4 }} />
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className={`anim-up ${t > 0.4 ? 'show' : ''}`} style={{ position:'absolute', bottom:120, left:120, right:120, display:'flex', gap:60 }}>
+        <div style={{ flex:1, padding:24, background:'rgba(255,255,255,0.04)', borderRadius:12, border:'1px solid rgba(255,255,255,0.06)' }}>
+          <div className="t-mono" style={{ fontSize:42, fontWeight:700, color:C.white, lineHeight:1 }}>20+</div>
+          <div style={{ fontSize:14, color:C.textMuted, marginTop:8 }}>Target platforms to cover</div>
+        </div>
+        <div style={{ flex:1, padding:24, background:'rgba(255,255,255,0.04)', borderRadius:12, border:'1px solid rgba(255,255,255,0.06)' }}>
+          <div className="t-mono" style={{ fontSize:42, fontWeight:700, color:C.white, lineHeight:1 }}>8+</div>
+          <div style={{ fontSize:14, color:C.textMuted, marginTop:8 }}>Languages needed per market</div>
+        </div>
+        <div style={{ flex:1, padding:24, background:'rgba(255,255,255,0.04)', borderRadius:12, border:'1px solid rgba(255,255,255,0.06)' }}>
+          <div className="t-mono" style={{ fontSize:42, fontWeight:700, color:C.red, lineHeight:1 }}>3–5d</div>
+          <div style={{ fontSize:14, color:C.textMuted, marginTop:8 }}>Average turnaround per product</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 2 · THE SOLUTION (15–30s)
+   ═══════════════════════════════════════════════════ */
+function Scene2() {
+  const { t } = useSprite();
+  return (
+    <div className="scene t-ui" style={{ background:C.bg, padding:'0 80px' }}>
+      <div className={`anim ${t > 0.02 ? 'show' : ''}`} style={{ position:'absolute', top:56, left:120, fontSize:13, color:C.accent, letterSpacing:'0.15em', textTransform:'uppercase', fontWeight:600 }}>
+        02 — The Solution
+      </div>
+
+      {/* Product card — left */}
+      <div className={`anim-left ${t > 0.08 ? 'show' : ''}`} style={{ position:'absolute', top:140, left:120, width:380, zIndex:2 }}>
+        <div style={{ background:C.bgCard, borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden' }}>
+          <div style={{ background:`linear-gradient(135deg, ${C.primary}18, ${C.accent}18)`, padding:'10px 16px', display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:10, height:10, borderRadius:'50%', background:C.accent }} />
+            <span style={{ fontSize:12, color:C.textMuted }}>Product Input</span>
+          </div>
+          <div style={{ padding:20 }}>
+            <div style={{ width:'100%', height:140, borderRadius:10, background:`linear-gradient(135deg, #1e293b, #334155)`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
+              <svg width="48" height="48" fill="none" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4M4 7l8 4M4 7v10l8 4m0-10v10" stroke={C.primaryLight} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div style={{ fontSize:17, fontWeight:600, color:C.white, marginBottom:6 }}>Portable Blender Pro</div>
+            <div style={{ fontSize:13, color:C.textMuted, lineHeight:1.5, marginBottom:12 }}>6-blade USB-C rechargeable, 300ml BPA-free, 22000rpm motor</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              {['Amazon','Shopify','TikTok Shop'].map(p => (
+                <span key={p} style={{ fontSize:11, padding:'3px 10px', borderRadius:9999, background:`${C.primary}18`, color:C.primaryLight, border:`1px solid ${C.primary}30` }}>{p}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* AI engine — center */}
+      <div className={`anim-scale ${t > 0.2 ? 'show' : ''}`} style={{ position:'absolute', top:200, left:'50%', transform:'translateX(-50%)', display:'flex', flexDirection:'column', alignItems:'center', zIndex:3 }}>
+        <div style={{ width:120, height:120, borderRadius:'50%', background:`radial-gradient(circle, ${C.primary}40, ${C.primary}10)`, border:`2px solid ${C.primary}60`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <svg width="48" height="48" fill="none" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke={C.primaryLight} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+        <div className="glow-pulse" style={{ position:'absolute', width:160, height:160, borderRadius:'50%', background:`radial-gradient(circle, ${C.primary}20, transparent 70%)`, top:-20, left:-20 }} />
+        <div style={{ fontSize:15, fontWeight:600, color:C.white, marginTop:16, letterSpacing:'0.05em' }}>CrossBoost AI</div>
+        <div style={{ fontSize:11, color:C.textMuted }}>Multi-model orchestration</div>
+      </div>
+
+      {/* Flow arrow */}
+      <div className={`anim ${t > 0.25 ? 'show' : ''}`} style={{ position:'absolute', top:260, left:520, zIndex:1 }}>
+        <svg width="100" height="20"><defs><marker id="ah1" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill={C.primaryLight}/></marker></defs><line x1="0" y1="10" x2="90" y2="10" stroke={C.primaryLight} strokeWidth="1.5" strokeDasharray="6 4" markerEnd="url(#ah1)"/></svg>
+      </div>
+
+      {/* Generated content cards — right */}
+      <div style={{ position:'absolute', top:120, right:120, width:420, zIndex:2 }}>
+        {/* Video card */}
+        <div className={`anim-right ${t > 0.35 ? 'show' : ''}`} style={{ background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.08)', padding:16, marginBottom:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:`${C.primary}20`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={C.primaryLight}><polygon points="5 3 19 12 5 21"/></svg>
+            </div>
+            <span style={{ fontSize:13, fontWeight:600, color:C.white }}>Product Video</span>
+            <span className="skill-tag" style={{ marginLeft:'auto', background:`${C.accent}18`, color:C.accent }}>Generated</span>
+          </div>
+          <div style={{ width:'100%', height:80, borderRadius:8, background:'linear-gradient(135deg, #1a1a2e, #16213e)', display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
+            <div style={{ width:36, height:36, borderRadius:'50%', background:`${C.primary}30`, border:`2px solid ${C.primaryLight}`, display:'flex', alignItems:'center', justifyContent:'center' }}><svg width="14" height="14" viewBox="0 0 24 24" fill={C.white}><polygon points="8 5, 19 12, 8 19"/></svg></div>
+            <div style={{ position:'absolute', bottom:6, right:8, fontSize:10, color:C.textMuted, background:'rgba(0,0,0,0.5)', padding:'2px 6px', borderRadius:4 }}>0:30</div>
+          </div>
+        </div>
+
+        {/* Image card */}
+        <div className={`anim-right ${t > 0.45 ? 'show' : ''}`} style={{ background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.08)', padding:16, marginBottom:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:`${C.accent}20`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            </div>
+            <span style={{ fontSize:13, fontWeight:600, color:C.white }}>Listing Images</span>
+            <span className="skill-tag" style={{ marginLeft:'auto', background:`${C.accent}18`, color:C.accent }}>4 angles</span>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+            {['Front','Side','Detail','Lifestyle'].map((l,i) => (
+              <div key={l} style={{ height:48, borderRadius:6, background:`linear-gradient(${135+i*30}deg, #1a2332, #243447)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <span style={{ fontSize:10, color:C.textMuted }}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Copy card */}
+        <div className={`anim-right ${t > 0.55 ? 'show' : ''}`} style={{ background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.08)', padding:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:`${C.purple}20`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <span style={{ fontSize:13, fontWeight:600, color:C.white }}>Listing Copy</span>
+            <span className="skill-tag" style={{ marginLeft:'auto', background:`${C.purple}18`, color:C.purple }}>5 languages</span>
+          </div>
+          <div style={{ fontSize:12, color:C.text, lineHeight:1.6, background:'rgba(255,255,255,0.03)', borderRadius:8, padding:'8px 12px' }}>
+            <div style={{ color:C.white, fontWeight:500, marginBottom:4 }}>Portable Blender Pro — 22000rpm...</div>
+            <div style={{ color:C.textMuted }}>✓ SEO optimized &nbsp; ✓ Platform-native tone</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom stat */}
+      <div className={`anim-up ${t > 0.7 ? 'show' : ''}`} style={{ position:'absolute', bottom:80, left:0, right:0, textAlign:'center' }}>
+        <span style={{ fontSize:18, color:C.text }}>One product in → </span>
+        <span className="t-mono" style={{ fontSize:22, fontWeight:700, color:C.accent }}>12+ content pieces</span>
+        <span style={{ fontSize:18, color:C.text }}> out. In minutes, not days.</span>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 3 · THREE CAPABILITIES (30–45s)
+   ═══════════════════════════════════════════════════ */
+function Scene3() {
+  const { t } = useSprite();
+  const caps = [
+    { icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.primaryLight} strokeWidth="1.5"><polygon points="5 3 19 12 5 21"/></svg>, color: C.primary, title: 'Product Videos', desc: 'Showcase, unboxing, lifestyle, tutorial — powered by Sora, Veo, Jimeng', stats: ['9:16 / 16:9 / 1:1','4K resolution','30–60s duration'], metric: '4 styles', metricLabel: 'video formats' },
+    { icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>, color: C.accent, title: 'Listing Images', desc: 'White-background, lifestyle, studio, outdoor — multi-angle auto-generation', stats: ['Front / 3/4 / Close-up','2000px+ resolution','Batch generation'], metric: '4 angles', metricLabel: 'per product' },
+    { icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>, color: C.purple, title: 'Listing Copy', desc: 'SEO-optimized, platform-native, multilingual — Amazon to TikTok Shop', stats: ['8+ languages','SEO keywords','A+ Content ready'], metric: '8+', metricLabel: 'languages' },
+  ];
+
+  return (
+    <div className="scene scene-dark t-ui" style={{ padding:'0 80px' }}>
+      <div className={`anim ${t > 0.02 ? 'show' : ''}`} style={{ position:'absolute', top:56, left:120, fontSize:13, color:C.primary, letterSpacing:'0.15em', textTransform:'uppercase', fontWeight:600 }}>
+        03 — Core Capabilities
+      </div>
+      <div className={`anim ${t > 0.05 ? 'show' : ''}`} style={{ position:'absolute', top:90, left:120, right:120, textAlign:'center' }}>
+        <div className="t-display" style={{ fontSize:38, fontWeight:700, color:C.white, letterSpacing:'-0.02em' }}>Three AI Engines, One Platform</div>
+      </div>
+
+      <div style={{ position:'absolute', top:180, left:120, right:120, display:'flex', gap:28 }}>
+        {caps.map((cap, i) => (
+          <div key={cap.title} className={`anim-up ${t > 0.12 + i*0.1 ? 'show' : ''}`} style={{ flex:1, background:C.bgCard, borderRadius:16, border:'1px solid rgba(255,255,255,0.06)', padding:28, position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:`linear-gradient(90deg, ${cap.color}, ${cap.color}60)` }} />
+            <div style={{ width:52, height:52, borderRadius:12, background:`${cap.color}15`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>{cap.icon}</div>
+            <div style={{ fontSize:20, fontWeight:600, color:C.white, marginBottom:8 }}>{cap.title}</div>
+            <div style={{ fontSize:13, color:C.text, lineHeight:1.6, marginBottom:20, minHeight:44 }}>{cap.desc}</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:24 }}>
+              {cap.stats.map(s => (
+                <div key={s} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:C.textMuted }}>
+                  <div style={{ width:4, height:4, borderRadius:'50%', background:cap.color, flexShrink:0 }} />{s}
+                </div>
+              ))}
+            </div>
+            <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:16 }}>
+              <div className="t-mono" style={{ fontSize:28, fontWeight:700, color:cap.color }}>{cap.metric}</div>
+              <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{cap.metricLabel}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 4 · MULTI-PLATFORM PUBLISH (45–60s)
+   ═══════════════════════════════════════════════════ */
+function Scene4() {
+  const { t } = useSprite();
+  const platforms = [
+    { name:'TikTok Shop', icon:<svg width="20" height="20" viewBox="0 0 24 24" fill={C.white}><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.88-2.88 2.89 2.89 0 012.88-2.88c.28 0 .56.04.82.11V9.01a6.32 6.32 0 00-.82-.05A6.34 6.34 0 003.15 15.3a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V9.32a8.18 8.18 0 004.76 1.52V7.39a4.84 4.84 0 01-1-.7z"/></svg>, color:'#00f2ea', metrics:'1.2M views avg', format:'9:16 Video' },
+    { name:'Instagram', icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.white} strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill={C.white} stroke="none"/></svg>, color:'#E1306C', metrics:'340K reach avg', format:'Reels + Stories' },
+    { name:'Pinterest', icon:<svg width="20" height="20" viewBox="0 0 24 24" fill={C.white}><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345c-.091.379-.293 1.194-.333 1.361-.052.22-.174.267-.402.161C5.59 15.513 4.576 13.2 4.576 11.306c0-3.765 2.735-7.223 7.886-7.223 4.14 0 7.362 2.952 7.362 6.899 0 4.115-2.594 7.427-6.198 7.427-1.21 0-2.348-.629-2.738-1.373l-.744 2.837c-.27 1.04-1.001 2.344-1.49 3.14C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>, color:'#BD081C', metrics:'890K impressions', format:'1:1 Images' },
+    { name:'YouTube', icon:<svg width="20" height="20" viewBox="0 0 24 24" fill={C.white}><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.546 12 3.546 12 3.546s-7.505 0-9.377.504A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.504 9.376.504 9.376.504s7.505 0 9.377-.504a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>, color:'#FF0000', metrics:'2.1M subscribers', format:'16:9 Shorts' },
+    { name:'Amazon', icon:<svg width="20" height="20" viewBox="0 0 24 24" fill={C.white}><path d="M.045 18.02c.071-.116.185-.133.312-.042C4.86 20.962 10.312 22 14.589 22c3.254 0 6.688-.834 9.058-2.336.196-.124.506.063.353.31-1.703 2.76-5.823 4.026-9.41 4.026-4.279 0-8.716-1.47-12.12-4.176-.262-.21-.467-.2-.425-.824z"/><path d="M1.722 16.448c.253-.37.548-.257.828-.117 3.342 1.696 7.573 2.668 11.85 2.668 2.856 0 6.115-.59 8.46-1.8.403-.207.72.21.372.591-2.376 2.629-6.482 3.699-10.332 3.699-4.472 0-8.817-1.347-12.378-4.04-.305-.23-.55-.4-.8-.6-.183-.148-.25-.305-.25-.305s-.053.177.25.404z"/></svg>, color:'#FF9900', metrics:'A+ Content', format:'SEO Listings' },
+  ];
+
+  return (
+    <div className="scene t-ui" style={{ background:C.bg, padding:'0 80px' }}>
+      <div className={`anim ${t > 0.02 ? 'show' : ''}`} style={{ position:'absolute', top:56, left:120, fontSize:13, color:C.accent, letterSpacing:'0.15em', textTransform:'uppercase', fontWeight:600 }}>
+        04 — Multi-Platform Distribution
+      </div>
+      <div className={`anim ${t > 0.05 ? 'show' : ''}`} style={{ position:'absolute', top:90, left:120, right:120, textAlign:'center' }}>
+        <div className="t-display" style={{ fontSize:38, fontWeight:700, color:C.white, letterSpacing:'-0.02em' }}>One Click. Every Platform.</div>
+        <div style={{ fontSize:16, color:C.text, marginTop:10 }}>Automatically optimized format, tone, and SEO for each platform's algorithm.</div>
+      </div>
+
+      {/* Platform cards grid */}
+      <div style={{ position:'absolute', top:190, left:120, right:120, display:'flex', gap:20, zIndex:1 }}>
+        {platforms.map((p, i) => (
+          <div key={p.name} className={`anim-up ${t > 0.12 + i*0.08 ? 'show' : ''}`} style={{ flex:1, background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', padding:'16px 18px', position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:p.color }} />
+            <div style={{ width:36, height:36, borderRadius:10, background:`${p.color}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>{p.icon}</div>
+            <div style={{ fontSize:14, fontWeight:600, color:C.white, marginBottom:3 }}>{p.name}</div>
+            <div className="t-mono" style={{ fontSize:11, color:C.textMuted, marginBottom:10 }}>{p.format}</div>
+            <div style={{ fontSize:12, color:C.accent, fontWeight:500 }}>{p.metrics}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Connection lines visualization */}
+      <div className={`anim-scale ${t > 0.4 ? 'show' : ''}`} style={{ position:'absolute', bottom:80, left:0, right:0, display:'flex', alignItems:'center', justifyContent:'center', gap:24, zIndex:2 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          <div style={{ width:64, height:64, borderRadius:16, background:`linear-gradient(135deg, ${C.primary}, ${C.accent})`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill={C.white}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          </div>
+          <div>
+            <div style={{ fontSize:15, fontWeight:600, color:C.white }}>CrossBoost Engine</div>
+            <div style={{ fontSize:12, color:C.textMuted }}>AI-optimized for each platform</div>
+          </div>
+        </div>
+        <svg width="80" height="20"><defs><marker id="ah2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill={C.accent}/></marker></defs><line x1="0" y1="10" x2="70" y2="10" stroke={C.accent} strokeWidth="2" strokeDasharray="6 4" markerEnd="url(#ah2)"/></svg>
+        <div className="t-mono" style={{ fontSize:28, fontWeight:700, color:C.accent }}>5 Platforms</div>
+        <svg width="80" height="20"><line x1="0" y1="10" x2="70" y2="10" stroke={C.accent} strokeWidth="2" strokeDasharray="6 4" markerEnd="url(#ah2)"/></svg>
+        <div className="t-mono" style={{ fontSize:28, fontWeight:700, color:C.white }}>Simultaneously</div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 5 · ANALYTICS DASHBOARD (60–75s)
+   ═══════════════════════════════════════════════════ */
+function Scene5() {
+  const { t } = useSprite();
+  const bars = [35, 52, 48, 71, 65, 88, 95];
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const maxBar = 100;
+
+  return (
+    <div className="scene scene-analytic t-ui" style={{ padding:'0 80px' }}>
+      <div className={`anim ${t > 0.02 ? 'show' : ''}`} style={{ position:'absolute', top:56, left:120, fontSize:13, color:C.cyan, letterSpacing:'0.15em', textTransform:'uppercase', fontWeight:600 }}>
+        05 — Performance Analytics
+      </div>
+      <div className={`anim ${t > 0.05 ? 'show' : ''}`} style={{ position:'absolute', top:90, left:120 }}>
+        <div className="t-display" style={{ fontSize:34, fontWeight:700, color:C.white, letterSpacing:'-0.02em' }}>Track, Analyze, Optimize</div>
+      </div>
+
+      {/* Metric cards */}
+      <div style={{ position:'absolute', top:160, left:120, right:120, display:'flex', gap:20 }}>
+        {[
+          { label:'Total Views', value:'4.2M', change:'+340%', color:C.primary },
+          { label:'Engagement Rate', value:'8.7%', change:'+156%', color:C.accent },
+          { label:'Conversion', value:'3.2%', change:'+89%', color:C.purple },
+          { label:'Revenue Impact', value:'$127K', change:'+210%', color:C.cyan },
+        ].map((m, i) => (
+          <div key={m.label} className={`anim-up ${t > 0.1 + i*0.06 ? 'show' : ''}`} style={{ flex:1, background:C.bgCard, borderRadius:12, border:'1px solid rgba(255,255,255,0.06)', padding:'16px 20px' }}>
+            <div style={{ fontSize:11, color:C.textMuted, marginBottom:6, textTransform:'uppercase', letterSpacing:'0.05em' }}>{m.label}</div>
+            <div className="t-mono" style={{ fontSize:30, fontWeight:700, color:C.white, lineHeight:1 }}>{m.value}</div>
+            <div className="t-mono" style={{ fontSize:13, color:m.color, marginTop:6, fontWeight:600 }}>{m.change}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bar chart */}
+      <div className={`anim-up ${t > 0.35 ? 'show' : ''}`} style={{ position:'absolute', top:340, left:120, width:780, height:340, background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', padding:'24px 28px' }}>
+        <div style={{ fontSize:14, fontWeight:600, color:C.white, marginBottom:20 }}>Weekly Content Performance</div>
+        <div style={{ display:'flex', alignItems:'flex-end', gap:16, height:220, paddingLeft:40, position:'relative' }}>
+          {/* Y-axis */}
+          <div style={{ position:'absolute', left:0, top:0, bottom:30, display:'flex', flexDirection:'column', justifyContent:'space-between', fontSize:10, color:C.textMuted }}>
+            {['100K','75K','50K','25K','0'].map(l => <span key={l}>{l}</span>)}
+          </div>
+          {bars.map((h, i) => (
+            <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
+              <div className="chart-bar" style={{ width:'100%', height:`${(h/maxBar)*190}px`, background:`linear-gradient(180deg, ${C.primary}, ${C.primary}60)`, borderRadius:'4px 4px 0 0', transform: t > 0.4+i*0.04 ? 'scaleY(1)' : 'scaleY(0)' }} />
+              <span style={{ fontSize:10, color:C.textMuted }}>{days[i]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* AI Insights */}
+      <div style={{ position:'absolute', top:340, right:120, width:480, display:'flex', flexDirection:'column', gap:12 }}>
+        <div className={`anim-right ${t > 0.5 ? 'show' : ''}`} style={{ background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', padding:20 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <span style={{ fontSize:14, fontWeight:600, color:C.white }}>AI Insight</span>
+          </div>
+          <div style={{ fontSize:13, color:C.text, lineHeight:1.6 }}>
+            Video content outperforms images by <span style={{ color:C.accent, fontWeight:600 }}>3.2×</span> on TikTok. Recommend shifting 60% of budget to short-form video.
+          </div>
+        </div>
+        <div className={`anim-right ${t > 0.6 ? 'show' : ''}`} style={{ background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', padding:20 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.yellow} strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span style={{ fontSize:14, fontWeight:600, color:C.white }}>Optimization</span>
+          </div>
+          <div style={{ fontSize:13, color:C.text, lineHeight:1.6 }}>
+            Your top-converting listing uses <span style={{ color:C.yellow, fontWeight:600 }}>lifestyle images</span> + <span style={{ color:C.yellow, fontWeight:600 }}>casual tone</span>. Apply this template to 12 remaining products.
+          </div>
+        </div>
+        <div className={`anim-right ${t > 0.7 ? 'show' : ''}`} style={{ background:C.bgCard, borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', padding:20 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span style={{ fontSize:14, fontWeight:600, color:C.white }}>Timing</span>
+          </div>
+          <div style={{ fontSize:13, color:C.text, lineHeight:1.6 }}>
+            Peak engagement: <span style={{ color:C.cyan, fontWeight:600 }}>Tue–Thu, 2–5pm EST</span>. Auto-schedule your next 7 posts to this window.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 6 · CTA + BRAND (75–90s)
+   ═══════════════════════════════════════════════════ */
+function Scene6() {
+  const { t } = useSprite();
+  return (
+    <div className="scene scene-cta t-ui" style={{ overflow:'hidden' }}>
+      {/* Background glow */}
+      <div className="glow-pulse" style={{ position:'absolute', top:'50%', left:'50%', width:800, height:800, borderRadius:'50%', background:`radial-gradient(circle, ${C.primary}15, transparent 70%)`, transform:'translate(-50%,-50%)' }} />
+
+      {/* Orbiting circle */}
+      <div style={{ position:'absolute', top:'50%', left:'50%', width:0, height:0 }}>
+        <div style={{ position:'absolute', top:-140, left:-140, width:280, height:280, borderRadius:'50%', border:`1px solid ${C.primary}30`, animation:'orbit 20s linear infinite' }}>
+          <div style={{ position:'absolute', top:-4, left:136, width:8, height:8, borderRadius:'50%', background:C.primary }} />
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className={`anim-scale ${t > 0.08 ? 'show' : ''}`} style={{ textAlign:'center', zIndex:1 }}>
+        {/* Logo mark */}
+        <div style={{ width:80, height:80, borderRadius:20, background:`linear-gradient(135deg, ${C.primary}, ${C.accent})`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 24px' }}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill={C.white}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div className="t-display" style={{ fontSize:72, fontWeight:700, color:C.white, letterSpacing:'-0.03em', lineHeight:1 }}>CrossBoost</div>
+      </div>
+
+      <div className={`anim ${t > 0.2 ? 'show' : ''}`} style={{ textAlign:'center', marginTop:16, zIndex:1 }}>
+        <div style={{ fontSize:22, color:C.text, maxWidth:600, margin:'0 auto', lineHeight:1.6 }}>
+          AI-Powered Cross-Border E-Commerce<br/>Content Marketing Platform
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className={`anim-up ${t > 0.35 ? 'show' : ''}`} style={{ display:'flex', gap:60, marginTop:48, zIndex:1 }}>
+        {[
+          { val:'10×', label:'Faster content creation' },
+          { val:'5+', label:'Platforms supported' },
+          { val:'8+', label:'Languages' },
+          { val:'40%', label:'Cost reduction' },
+        ].map(s => (
+          <div key={s.label} style={{ textAlign:'center' }}>
+            <div className="t-mono" style={{ fontSize:36, fontWeight:700, color:C.white }}>{s.val}</div>
+            <div style={{ fontSize:12, color:C.textMuted, marginTop:4 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA button */}
+      <div className={`anim-up ${t > 0.5 ? 'show' : ''}`} style={{ marginTop:48, zIndex:1 }}>
+        <div style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'14px 36px', background:`linear-gradient(135deg, ${C.primary}, ${C.accent})`, borderRadius:12, fontSize:18, fontWeight:600, color:C.white }}>
+          <span>Start Your Free Trial</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.white} strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+      </div>
+
+      {/* Bottom tagline */}
+      <div className={`anim ${t > 0.65 ? 'show' : ''}`} style={{ position:'absolute', bottom:80, left:0, right:0, textAlign:'center', zIndex:1 }}>
+        <div style={{ fontSize:14, color:C.textMuted, letterSpacing:'0.1em' }}>crossboost.io</div>
+      </div>
+
+      {/* Decorative particles */}
+      {[
+        { x:200, y:200, delay:0.2, size:4 },
+        { x:1650, y:300, delay:0.4, size:3 },
+        { x:400, y:750, delay:0.6, size:5 },
+        { x:1500, y:700, delay:0.3, size:4 },
+        { x:900, y:150, delay:0.5, size:3 },
+      ].map((p, i) => (
+        <div key={i} className={t > p.delay ? '' : ''} style={{ position:'absolute', left:p.x, top:p.y, width:p.size, height:p.size, borderRadius:'50%', background:C.primaryLight, opacity: t > p.delay ? 0.3 : 0, transition:'opacity 1s' }} />
+      ))}
+
+      {/* Watermark */}
+      <div style={{ position:'absolute', bottom:24, right:32, fontSize:11, color:'rgba(255,255,255,0.25)', letterSpacing:'0.15em', fontFamily:'monospace', pointerEvents:'none', zIndex:100 }}>
+        Created by Huashu-Design
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   APP — Assemble all scenes
+   ═══════════════════════════════════════════════════ */
+function App() {
+  return (
+    <Stage duration={90} width={1920} height={1080} bgColor="#0c1929">
+      <Sprite start={0} end={15}><Scene1 /></Sprite>
+      <Sprite start={15} end={30}><Scene2 /></Sprite>
+      <Sprite start={30} end={45}><Scene3 /></Sprite>
+      <Sprite start={45} end={60}><Scene4 /></Sprite>
+      <Sprite start={60} end={75}><Scene5 /></Sprite>
+      <Sprite start={75} end={90}><Scene6 /></Sprite>
+    </Stage>
+  );
+}
+
+/* ── Render ── */
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

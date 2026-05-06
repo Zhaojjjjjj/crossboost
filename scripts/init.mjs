@@ -18,8 +18,7 @@ async function main() {
   })
 
   // Create database if not exists
-  await connection.execute(`CREATE DATABASE IF NOT EXISTS \`${DB_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
-  await connection.execute(`USE \`${DB_DATABASE}\``)
+  await connection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
 
   // Tables are auto-created by TypeORM synchronize:true
   // This init script just ensures the database exists
